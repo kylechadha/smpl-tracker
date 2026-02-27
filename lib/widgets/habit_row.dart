@@ -21,6 +21,9 @@ class HabitRow extends StatelessWidget {
     this.onLongPress,
   });
 
+  /// Subtle dimming for completed habits so incomplete ones stand out
+  double get _dimAlpha => isLoggedToday ? 0.5 : 1.0;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -51,11 +54,21 @@ class HabitRow extends StatelessWidget {
                 // Top row: checkmark, name, pips
                 Row(
                   children: [
-                    // Checkmark indicator
-                    if (isLoggedToday) ...[
-                      _buildCheckmark(),
-                      const SizedBox(width: 10),
-                    ],
+                    // Animated checkmark indicator
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) =>
+                          ScaleTransition(scale: animation, child: child),
+                      child: isLoggedToday
+                          ? Padding(
+                              key: const ValueKey('checked'),
+                              padding: const EdgeInsets.only(right: 10),
+                              child: _buildCheckmark(),
+                            )
+                          : const SizedBox.shrink(
+                              key: ValueKey('unchecked'),
+                            ),
+                    ),
                     // Habit name
                     Expanded(
                       child: Text(
@@ -63,7 +76,7 @@ class HabitRow extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF1A1A2E),
+                          color: Color.fromRGBO(26, 26, 46, _dimAlpha),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -80,7 +93,10 @@ class HabitRow extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildHealthBar(),
+                      child: Opacity(
+                        opacity: _dimAlpha,
+                        child: _buildHealthBar(),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -88,7 +104,7 @@ class HabitRow extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _getHealthColor(),
+                        color: _getHealthColor().withValues(alpha: _dimAlpha),
                       ),
                     ),
                   ],
@@ -150,8 +166,7 @@ class HabitRow extends StatelessWidget {
   }
 
   Widget _buildHealthBar() {
-    final displayHealth = health.clamp(0.0, 150.0);
-    final fillWidth = (displayHealth / 100).clamp(0.0, 1.5);
+    final fillWidth = (health / 100).clamp(0.0, 1.0);
 
     return Container(
       height: 6,
@@ -161,14 +176,14 @@ class HabitRow extends StatelessWidget {
       ),
       child: FractionallySizedBox(
         alignment: Alignment.centerLeft,
-        widthFactor: fillWidth.clamp(0.0, 1.0),
+        widthFactor: fillWidth,
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: _getHealthGradient(),
             ),
             borderRadius: BorderRadius.circular(3),
-            boxShadow: health > 100
+            boxShadow: health >= 100
                 ? [
                     BoxShadow(
                       color: const Color(0xFF3B82F6).withValues(alpha: 0.5),
@@ -183,7 +198,7 @@ class HabitRow extends StatelessWidget {
   }
 
   Color _getHealthColor() {
-    if (health >= 100) return const Color(0xFF3B82F6); // Blue - overflow
+    if (health >= 100) return const Color(0xFF3B82F6); // Blue - full health
     if (health >= 70) return const Color(0xFF10B981); // Green - healthy
     if (health >= 40) return const Color(0xFFF59E0B); // Yellow - warning
     return const Color(0xFFEF4444); // Red - critical
